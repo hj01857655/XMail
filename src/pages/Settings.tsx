@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Card,
   Tabs,
@@ -14,6 +14,9 @@ import {
   Space,
   Modal,
   message,
+  Alert,
+  Divider,
+  Tag,
 } from 'antd'
 import {
   UserOutlined,
@@ -23,8 +26,16 @@ import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
+  ThunderboltOutlined,
+  InfoCircleOutlined,
 } from '@ant-design/icons'
 import type { Account } from '@/types/index'
+import { 
+  getProviderOptions, 
+  autoFillConfigFromEmail, 
+  getProviderDisplayInfo,
+  type EmailProviderConfig 
+} from '@/utils/email-providers'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -57,8 +68,42 @@ const Settings = () => {
   const [isAccountModalVisible, setIsAccountModalVisible] = useState(false)
   const [editingAccount, setEditingAccount] = useState<Account | null>(null)
   const [accountForm] = Form.useForm()
+  const [selectedProvider, setSelectedProvider] = useState<string>('')
+  const [providerConfig, setProviderConfig] = useState<EmailProviderConfig | null>(null)
+  const [isAutoDetecting, setIsAutoDetecting] = useState(false)
+
+  // Auto-detect email provider when email changes
+  const handleEmailChange = (email: string) => {
+    if (!email.includes('@')) return
+    
+    setIsAutoDetecting(true)
+    const config = autoFillConfigFromEmail(email)
+    
+    if (config) {
+      setSelectedProvider(config.provider)
+      accountForm.setFieldsValue({
+        provider: config.provider,
+        imapHost: config.imapHost,
+        imapPort: config.imapPort,
+        imapSecure: config.imapSecure,
+        smtpHost: config.smtpHost,
+        smtpPort: config.smtpPort,
+        smtpSecure: config.smtpSecure,
+        imapUsername: config.imapUsername,
+        smtpUsername: config.smtpUsername,
+      })
+      message.success(`已自动检测为${config.provider === 'gmail' ? 'Gmail' : config.provider === 'outlook' ? 'Outlook' : config.provider === 'qq' ? 'QQ邮箱' : '对应邮箱'}服务商`)
+    } else {
+      setSelectedProvider('custom')
+      message.info('未识别邮箱类型，请手动配置服务器信息')
+    }
+    
+    setTimeout(() => setIsAutoDetecting(false), 500)
+  }
 
   const handleAddAccount = () => {
+    setSelectedProvider('')
+    setProviderConfig(null)
     setEditingAccount(null)
     accountForm.resetFields()
     setIsAccountModalVisible(true)
@@ -66,9 +111,11 @@ const Settings = () => {
 
   const handleEditAccount = (account: Account) => {
     setEditingAccount(account)
+    setSelectedProvider('') // Reset provider selection
     accountForm.setFieldsValue({
       name: account.name,
       email: account.email,
+      provider: 'custom', // Default to custom for existing accounts
       imapHost: account.imapConfig.host,
       imapPort: account.imapConfig.port,
       imapSecure: account.imapConfig.secure,
@@ -317,9 +364,13 @@ const Settings = () => {
       <Modal
         title={editingAccount ? '编辑账户' : '添加账户'}
         open={isAccountModalVisible}
-        onCancel={() => setIsAccountModalVisible(false)}
+        onCancel={() => {
+          setIsAccountModalVisible(false)
+          setSelectedProvider('')
+          setProviderConfig(null)
+        }}
         footer={null}
-        width={600}
+        width={700}
       >
         <Form
           form={accountForm}
@@ -342,10 +393,92 @@ const Settings = () => {
               { type: 'email', message: '请输入有效的邮箱地址' },
             ]}
           >
-            <Input placeholder="user@example.com" />
+            <Input 
+              placeholder="user@example.com" 
+              onChange={(e) => handleEmailChange(e.target.value)}
+              suffix={isAutoDetecting ? <ThunderboltOutlined spin /> : null}
+            />
           </Form.Item>
 
-          <Title level={5}>IMAP 设置（接收邮件）</Title>
+          {/* Email Provider Selection */}
+          <Form.Item
+            label="邮箱服务商"
+            name="provider"
+            tooltip="选择您的邮箱服务商以自动配置服务器设置"
+          >
+            <Select
+              placeholder="选择邮箱服务商"
+              onChange={(value) => {
+                setSelectedProvider(value)
+                const providerOptions = getProviderOptions()
+                const provider = providerOptions.find(p => p.value === value)
+                if (provider) {
+                  setProviderConfig(provider.config)
+                  accountForm.setFieldsValue({
+                    imapHost: provider.config.imap.host,
+                    imapPort: provider.config.imap.port,
+                    imapSecure: provider.config.imap.secure,
+                    smtpHost: provider.config.smtp.host,
+                    smtpPort: provider.config.smtp.port,
+                    smtpSecure: provider.config.smtp.secure,
+                  })
+                }
+              }}
+            >
+              {getProviderOptions().map(option => (
+                <Option key={option.value} value={option.value}>
+                  <Space>
+                    {option.label}
+                    {option.domains.length > 0 && (
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        ({option.domains.slice(0, 2).join(', ')})
+                      </Text>
+                    )}
+                  </Space>
+                </Option>
+              ))}
+              <Option value="custom">
+                <Space>
+                  <SettingOutlined />
+                  自定义配置
+                </Space>
+              </Option>
+            </Select>
+          </Form.Item>
+
+          {/* Provider Info Alert */}
+          {providerConfig && (
+            <Alert
+              type="info"
+              showIcon
+              icon={<InfoCircleOutlined />}
+              message={`${providerConfig.displayName} 配置信息`}
+              description={
+                <div>
+                  {providerConfig.features?.requiresAppPassword && (
+                    <div style={{ marginBottom: 8 }}>
+                      <Tag color="orange">需要应用专用密码</Tag>
+                      <Text type="secondary">请在邮箱设置中生成应用专用密码</Text>
+                    </div>
+                  )}
+                  {providerConfig.features?.supportsOAuth && (
+                    <div style={{ marginBottom: 8 }}>
+                      <Tag color="blue">支持OAuth2</Tag>
+                      <Text type="secondary">推荐使用OAuth2认证（更安全）</Text>
+                    </div>
+                  )}
+                  {providerConfig.notes && (
+                    <div>
+                      <Text type="secondary">{providerConfig.notes}</Text>
+                    </div>
+                  )}
+                </div>
+              }
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
+          <Divider orientation="left">IMAP 设置（接收邮件）</Divider>
           <Form.Item
             label="IMAP 服务器"
             name="imapHost"
@@ -382,7 +515,7 @@ const Settings = () => {
             <Input.Password />
           </Form.Item>
 
-          <Title level={5}>SMTP 设置（发送邮件）</Title>
+          <Divider orientation="left">SMTP 设置（发送邮件）</Divider>
           <Form.Item
             label="SMTP 服务器"
             name="smtpHost"
@@ -421,12 +554,46 @@ const Settings = () => {
 
           <Form.Item>
             <Space>
-              <Button type="primary" htmlType="submit">
+              <Button type="primary" htmlType="submit" loading={isAutoDetecting}>
                 {editingAccount ? '更新账户' : '添加账户'}
               </Button>
-              <Button onClick={() => setIsAccountModalVisible(false)}>
+              <Button onClick={() => {
+                setIsAccountModalVisible(false)
+                setSelectedProvider('')
+                setProviderConfig(null)
+              }}>
                 取消
               </Button>
+              {selectedProvider && selectedProvider !== 'custom' && (
+                <Button 
+                  type="link" 
+                  icon={<InfoCircleOutlined />}
+                  onClick={() => {
+                    const provider = getProviderOptions().find(p => p.value === selectedProvider)
+                    if (provider) {
+                      Modal.info({
+                        title: `${provider.label} 配置说明`,
+                        width: 500,
+                        content: (
+                          <div>
+                            <p><strong>支持的域名：</strong>{provider.domains.join(', ')}</p>
+                            <p><strong>IMAP：</strong>{provider.config.imap.host}:{provider.config.imap.port}</p>
+                            <p><strong>SMTP：</strong>{provider.config.smtp.host}:{provider.config.smtp.port}</p>
+                            {provider.config.features?.requiresAppPassword && (
+                              <Alert type="warning" message="此服务商需要应用专用密码，请在邮箱设置中生成" style={{marginTop: 8}} />
+                            )}
+                            {provider.config.notes && (
+                              <Alert type="info" message={provider.config.notes} style={{marginTop: 8}} />
+                            )}
+                          </div>
+                        )
+                      })
+                    }
+                  }}
+                >
+                  查看配置说明
+                </Button>
+              )}
             </Space>
           </Form.Item>
         </Form>

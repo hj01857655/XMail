@@ -1,5 +1,6 @@
 import { Layout, Menu, Button, Typography } from 'antd'
 import {
+  DashboardOutlined,
   InboxOutlined,
   SendOutlined,
   EditOutlined,
@@ -20,9 +21,15 @@ const Sidebar = () => {
   const menuItems = [
     {
       key: '/',
+      icon: <DashboardOutlined />,
+      label: '仪表板',
+      onClick: () => navigate('/'),
+    },
+    {
+      key: '/emails',
       icon: <InboxOutlined />,
       label: '收件箱',
-      onClick: () => navigate('/'),
+      onClick: () => navigate('/emails'),
     },
     {
       key: '/folder/sent',
@@ -78,7 +85,7 @@ const Sidebar = () => {
           邮箱管理
         </Title>
       </div>
-      
+
       <div style={{ padding: '0 16px 16px' }}>
         <Button
           type="primary"

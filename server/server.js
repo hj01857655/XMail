@@ -131,6 +131,120 @@ app.get('/api/contacts', async (req, res) => {
   }
 })
 
+// 邮箱连接测试
+const mailboxTester = require('./simple-mailbox-tester')
+
+// 测试邮箱连接
+app.post('/api/test-mailbox', async (req, res) => {
+  try {
+    const { email, password, customConfig } = req.body
+
+    if (!email || !password) {
+      return res.status(400).json({ error: '邮箱和密码不能为空' })
+    }
+
+    let results
+    if (customConfig) {
+      results = [await mailboxTester.testCustomMailbox(email, password, customConfig)]
+    } else {
+      results = await mailboxTester.testMailboxComprehensive(email, password)
+    }
+
+    res.json({
+      success: true,
+      results,
+      report: mailboxTester.generateTestReport(results)
+    })
+  } catch (error) {
+    console.error('邮箱测试失败:', error)
+    res.status(500).json({ error: '邮箱测试失败', details: error.message })
+  }
+})
+
+// 获取支持的邮箱提供商
+app.get('/api/email-providers', (req, res) => {
+  try {
+    const providers = Object.entries(mailboxTester.EMAIL_PROVIDERS).map(([key, provider]) => ({
+      key,
+      name: provider.name,
+      domains: provider.domains
+    }))
+    res.json(providers)
+  } catch (error) {
+    console.error('获取邮箱提供商失败:', error)
+    res.status(500).json({ error: '获取邮箱提供商失败' })
+  }
+})
+
+// 仪表板统计数据
+app.get('/api/dashboard/stats', async (req, res) => {
+  try {
+    // 获取邮件统计
+    const [emailStats] = await db.execute(`
+      SELECT
+        COUNT(*) as totalEmails,
+        SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END) as unreadEmails,
+        SUM(CASE WHEN DATE(date_received) = CURDATE() THEN 1 ELSE 0 END) as todayEmails
+      FROM emails
+      WHERE is_deleted = 0
+    `)
+
+    // 获取账户统计
+    const [accountStats] = await db.execute(`
+      SELECT
+        COUNT(*) as totalAccounts,
+        SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as activeAccounts
+      FROM accounts
+    `)
+
+    const stats = {
+      totalEmails: emailStats[0]?.totalEmails || 0,
+      unreadEmails: emailStats[0]?.unreadEmails || 0,
+      todayEmails: emailStats[0]?.todayEmails || 0,
+      totalAccounts: accountStats[0]?.totalAccounts || 0,
+      activeAccounts: accountStats[0]?.activeAccounts || 0
+    }
+
+    res.json(stats)
+  } catch (error) {
+    console.error('获取仪表板统计失败:', error)
+    res.status(500).json({ error: '获取仪表板统计失败' })
+  }
+})
+
+// 账户状态
+app.get('/api/dashboard/accounts-status', async (req, res) => {
+  try {
+    const [accounts] = await db.execute(`
+      SELECT
+        a.id,
+        a.name,
+        a.email,
+        a.is_active,
+        a.last_sync_at,
+        COUNT(e.id) as unreadCount
+      FROM accounts a
+      LEFT JOIN emails e ON a.id = e.account_id AND e.is_read = 0 AND e.is_deleted = 0
+      GROUP BY a.id, a.name, a.email, a.is_active, a.last_sync_at
+      ORDER BY a.name
+    `)
+
+    const accountStatuses = accounts.map(account => ({
+      id: account.id,
+      name: account.name,
+      email: account.email,
+      status: account.is_active ? 'connected' : 'disconnected',
+      lastSync: account.last_sync_at,
+      unreadCount: parseInt(account.unreadCount) || 0
+    }))
+
+    res.json(accountStatuses)
+  } catch (error) {
+    console.error('获取账户状态失败:', error)
+    res.status(500).json({ error: '获取账户状态失败' })
+  }
+})
+
 // 启动服务器
 async function startServer() {
   await connectDB()

@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 import { Layout } from 'antd'
 import Sidebar from '@components/Layout/Sidebar'
 import Header from '@components/Layout/Header'
+import Dashboard from '@pages/Dashboard'
 import EmailList from '@pages/EmailList'
 import EmailDetail from '@pages/EmailDetail'
 import Compose from '@pages/Compose'
@@ -28,7 +29,9 @@ function App() {
           }}
         >
           <Routes>
-            <Route path="/" element={<EmailList />} />
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/emails" element={<EmailList />} />
             <Route path="/folder/:folderId" element={<EmailList />} />
             <Route path="/email/:emailId" element={<EmailDetail />} />
             <Route path="/compose" element={<Compose />} />

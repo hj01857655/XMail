@@ -151,3 +151,31 @@ export interface Notification {
   message: string;
   timestamp: Date;
 }
+
+// 仪表板统计数据类型
+export interface DashboardStats {
+  totalEmails: number;
+  unreadEmails: number;
+  todayEmails: number;
+  totalAccounts: number;
+  activeAccounts: number;
+}
+
+// 账户状态类型
+export interface AccountStatus {
+  id: string;
+  name: string;
+  email: string;
+  status: 'connected' | 'disconnected' | 'error' | 'syncing';
+  lastSync?: Date;
+  unreadCount: number;
+  errorMessage?: string;
+}
+
+// 系统状态类型
+export interface SystemStatus {
+  database: 'connected' | 'disconnected' | 'error';
+  server: 'running' | 'stopped' | 'error';
+  uptime: number;
+  version: string;
+}
