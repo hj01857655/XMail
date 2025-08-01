@@ -9,12 +9,13 @@ yarn-error.log*
 dist/
 build/
 
-# Environment variables
+# Environment variables (CRITICAL - Never commit these!)
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*
 
 # IDE
 .vscode/
@@ -65,3 +66,12 @@ uploads/
 # Temporary files
 tmp/
 temp/
+
+# Security - Never commit sensitive data
+config/secrets.json
+certificates/
+keys/
+*.key
+*.pem
+*.p12
+*.pfx

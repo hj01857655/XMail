@@ -1,7 +1,11 @@
 import CryptoJS from 'crypto-js'
 import bcrypt from 'bcryptjs'
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-encryption-key-change-in-production'
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY
+
+if (!ENCRYPTION_KEY) {
+  throw new Error('ENCRYPTION_KEY environment variable is required for security')
+}
 const SALT_ROUNDS = 12
 
 export class EncryptionUtil {
