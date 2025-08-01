@@ -23,6 +23,10 @@ build/
 *.swp
 *.swo
 
+# Development tools
+.kiro/
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db
