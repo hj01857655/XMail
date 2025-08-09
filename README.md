@@ -44,8 +44,8 @@
 #### 构建步骤
 ```bash
 # 克隆仓库
-git clone https://github.com/your-username/email-manager.git
-cd email-manager
+git clone https://github.com/hj01857655/XMail.git
+cd XMail
 
 # 安装前端依赖
 npm install
@@ -167,8 +167,8 @@ npm run build
 
 ## 📞 联系
 
-- 项目链接: [https://github.com/your-username/email-manager](https://github.com/your-username/email-manager)
-- 问题反馈: [Issues](https://github.com/your-username/email-manager/issues)
+- 项目链接: [https://github.com/hj01857655/XMail](https://github.com/hj01857655/XMail)
+- 问题反馈: [Issues](https://github.com/hj01857655/XMail/issues)
 
 ---
 
