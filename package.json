@@ -1,6 +1,6 @@
 {
   "name": "email-manager-tauri",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "邮件管理系统 - Tauri 版本",
   "type": "module",
   "scripts": {
