@@ -1,0 +1,94 @@
+name: 'Build and Release'
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--target aarch64-apple-darwin'
+            target: 'aarch64-apple-darwin'
+          - platform: 'macos-latest'
+            args: '--target x86_64-apple-darwin'
+            target: 'x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+            target: ''
+          - platform: 'windows-latest'
+            args: ''
+            target: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build the app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'XMail v${{ github.ref_name }}'
+          releaseBody: |
+            ## 📧 XMail 邮件管理系统
+            
+            ### 🚀 新版本发布
+            
+            **下载说明：**
+            - Windows: 下载 `.msi` 或 `.exe` 文件
+            - macOS: 下载 `.dmg` 文件
+            - Linux: 下载 `.deb` 或 `.AppImage` 文件
+            
+            ### ✨ 主要功能
+            - 📧 邮件管理 (创建、查看、编辑、删除)
+            - 🔍 强大的搜索和筛选功能
+            - 📊 邮件统计信息
+            - 🎨 现代化用户界面
+            - 🚀 跨平台支持
+            
+            ### 🛠️ 技术栈
+            - 前端: Vue.js 3 + Vite
+            - 后端: Rust + Tauri
+            - 数据库: SQLite
+            
+            如有问题请在 [Issues](https://github.com/hj01857655/XMail/issues) 中反馈。
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

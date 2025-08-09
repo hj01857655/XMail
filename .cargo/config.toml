@@ -1,0 +1,7 @@
+# 禁用所有镜像，强制使用官方源
+[net]
+git-fetch-with-cli = true
+offline = false
+
+[http]
+check-revoke = false
