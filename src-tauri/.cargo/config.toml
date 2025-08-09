@@ -1,0 +1,24 @@
+[build]
+# 使用更快的链接器
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[target.x86_64-pc-windows-msvc]
+# Windows 特定优化
+rustflags = ["-C", "target-cpu=native"]
+
+[target.x86_64-apple-darwin]
+# macOS Intel 优化
+rustflags = ["-C", "target-cpu=native"]
+
+[target.aarch64-apple-darwin]
+# macOS Apple Silicon 优化
+rustflags = ["-C", "target-cpu=native"]
+
+[net]
+# 网络优化
+retry = 3
+git-fetch-with-cli = true
+
+[registry]
+# 使用稀疏索引加速
+default = "sparse+https://index.crates.io/"
