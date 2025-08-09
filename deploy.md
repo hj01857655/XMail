@@ -25,7 +25,6 @@
 
 - ✅ **Windows** - 生成 `.msi` 和 `.exe` 安装包
 - ✅ **macOS** - 生成 `.dmg` 安装包 (Intel + Apple Silicon)
-- ✅ **Linux** - 生成 `.deb` 和 `.AppImage` 安装包
 
 ### 构建状态
 
