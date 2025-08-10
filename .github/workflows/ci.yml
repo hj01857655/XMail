@@ -7,66 +7,13 @@ on:
     branches: [ main, master ]
 
 jobs:
-  test-build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
-            target: 'aarch64-apple-darwin'
-          - platform: 'windows-latest'
-            args: '--bundles msi'
-            target: ''
-
-    runs-on: ${{ matrix.platform }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: './src-tauri -> target'
-          cache-on-failure: true
-          shared-key: ${{ matrix.platform }}
-
-      - name: Install frontend dependencies
-        run: npm ci --prefer-offline --no-audit
-
-      - name: Build app (test only)
-        uses: tauri-apps/tauri-action@v0
-        env:
-          CARGO_INCREMENTAL: 0
-          RUST_BACKTRACE: 1
-        with:
-          args: ${{ matrix.args }}
-
-  auto-release:
-    needs: test-build
+  check-release:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'master')
-    permissions:
-      contents: write
-      pull-requests: write
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
 
       - name: Check for auto-release tag
         id: check
@@ -81,63 +28,15 @@ jobs:
             echo "🚀 检测到自动发布标记: $VERSION"
           else
             echo "should_release=false" >> $GITHUB_OUTPUT
-            echo "✅ 构建测试成功！如需自动发布，请在提交消息中添加 [auto-release:v1.0.1] 标记"
+            echo "✅ 普通提交，只进行测试构建"
           fi
-
-      - name: Create release
-        if: steps.check.outputs.should_release == 'true'
-        id: create_release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ steps.check.outputs.version }}"
-          COMMIT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          
-          echo "🚀 创建 GitHub Release: $VERSION"
-          
-          # 创建发布说明
-          echo "## 自动发布 $VERSION" > release_notes.md
-          echo "" >> release_notes.md
-          echo "🤖 此版本由 CI 成功后自动发布" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "### 📦 安装包下载" >> release_notes.md
-          echo "- Windows: .msi 安装包" >> release_notes.md
-          echo "- macOS: .dmg 安装包 (支持 Intel 和 Apple Silicon)" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "### 🔗 相关信息" >> release_notes.md
-          echo "- 基于提交: $COMMIT_SHA" >> release_notes.md
-          echo "- 构建时间: $BUILD_TIME" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "如有问题请访问 [Issues](https://github.com/hj01857655/XMail/issues) 页面反馈。" >> release_notes.md
-          
-          # 删除已存在的 Release 和标签
-          if gh release view "$VERSION" >/dev/null 2>&1; then
-            echo "删除已存在的 Release: $VERSION"
-            gh release delete "$VERSION" --yes || true
-          fi
-          
-          if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
-            echo "删除已存在的标签: $VERSION"
-            git push --delete origin "$VERSION" || true
-          fi
-          
-          # 创建新的 Release（会自动创建标签）
-          gh release create "$VERSION" \
-            --title "XMail $VERSION" \
-            --notes-file release_notes.md \
-            --target "${{ github.sha }}"
-          
-          echo "release_created=true" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
     
     outputs:
-      release_created: ${{ steps.create_release.outputs.release_created }}
-      version: ${{ steps.create_release.outputs.version }}
+      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.check.outputs.version }}
 
-  build-and-upload:
-    needs: auto-release
-    if: needs.auto-release.outputs.release_created == 'true'
+  build:
+    needs: check-release
     strategy:
       fail-fast: false
       matrix:
@@ -189,16 +88,40 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci --prefer-offline --no-audit
 
-      - name: Build and upload to release
+      - name: Build for testing (no release)
+        if: needs.check-release.outputs.should_release != 'true'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          CARGO_INCREMENTAL: 0
+          RUST_BACKTRACE: 1
+        with:
+          args: ${{ matrix.args }}
+
+      - name: Build and release
+        if: needs.check-release.outputs.should_release == 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_INCREMENTAL: 0
           RUST_BACKTRACE: 1
         with:
-          tagName: ${{ needs.auto-release.outputs.version }}
-          releaseName: 'XMail ${{ needs.auto-release.outputs.version }}'
-          releaseBody: '构建完成，安装包已上传'
+          tagName: ${{ needs.check-release.outputs.version }}
+          releaseName: 'XMail ${{ needs.check-release.outputs.version }}'
+          releaseBody: |
+            ## 自动发布 ${{ needs.check-release.outputs.version }}
+            
+            🤖 此版本由 CI 成功后自动发布
+            
+            ### 📦 安装包下载
+            - Windows: .msi 和 .exe 安装包
+            - macOS: .dmg 安装包 (支持 Intel 和 Apple Silicon)
+            
+            ### 🔗 相关信息
+            - 基于提交: ${{ github.sha }}
+            - 构建时间: ${{ github.run_started_at }}
+            
+            如有问题请访问 [Issues](https://github.com/hj01857655/XMail/issues) 页面反馈。
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
