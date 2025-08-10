@@ -1,0 +1,66 @@
+name: Cleanup old workflow runs and artifacts
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # 每天 03:00 UTC 运行（北京时间 11:00）
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    env:
+      # 可根据需要调整
+      RETENTION_DAYS_ALL: 30         # 删除所有超过该天数的运行
+      RETENTION_DAYS_FAILED: 7       # 删除失败/取消且超过该天数的运行
+      ARTIFACT_RETENTION_DAYS: 14    # 删除超过该天数的构件
+    steps:
+      - name: Show GH CLI version
+        run: gh --version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup workflow runs and artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RETENTION_DAYS_ALL: ${{ env.RETENTION_DAYS_ALL }}
+          RETENTION_DAYS_FAILED: ${{ env.RETENTION_DAYS_FAILED }}
+          ARTIFACT_RETENTION_DAYS: ${{ env.ARTIFACT_RETENTION_DAYS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cutoff_all=$(date -u -d "${RETENTION_DAYS_ALL} days ago" +%Y-%m-%dT%H:%M:%SZ)
+          cutoff_failed=$(date -u -d "${RETENTION_DAYS_FAILED} days ago" +%Y-%m-%dT%H:%M:%SZ)
+          cutoff_artifacts=$(date -u -d "${ARTIFACT_RETENTION_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)
+
+          echo "Deleting failed/cancelled runs older than ${RETENTION_DAYS_FAILED} days..."
+          gh api -H "Accept: application/vnd.github+json" \
+            "/repos/${REPO}/actions/runs" --paginate \
+            --jq '.workflow_runs[] | select(.status=="completed" and (.conclusion=="failure" or .conclusion=="cancelled") and .created_at < "'"$cutoff_failed"'") | .id' | \
+          while read -r run_id; do
+            echo "Deleting run $run_id"
+            gh api -X DELETE "/repos/${REPO}/actions/runs/${run_id}" || true
+          done
+
+          echo "Deleting all runs older than ${RETENTION_DAYS_ALL} days..."
+          gh api -H "Accept: application/vnd.github+json" \
+            "/repos/${REPO}/actions/runs" --paginate \
+            --jq '.workflow_runs[] | select(.created_at < "'"$cutoff_all"'") | .id' | \
+          while read -r run_id; do
+            echo "Deleting run $run_id"
+            gh api -X DELETE "/repos/${REPO}/actions/runs/${run_id}" || true
+          done
+
+          echo "Deleting artifacts older than ${ARTIFACT_RETENTION_DAYS} days..."
+          gh api -H "Accept: application/vnd.github+json" \
+            "/repos/${REPO}/actions/artifacts" --paginate \
+            --jq '.artifacts[] | select(.expired==false and .created_at < "'"$cutoff_artifacts"'") | .id' | \
+          while read -r art_id; do
+            echo "Deleting artifact $art_id"
+            gh api -X DELETE "/repos/${REPO}/actions/artifacts/${art_id}" || true
+          done

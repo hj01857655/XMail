@@ -48,12 +48,15 @@ impl EmailService {
 
     pub fn mark_email_as_important(&self, id: &str) -> Result<()> {
         if let Some(mut email) = self.db.get_email_by_id(id)? {
-            email.mark_as_important();
+            // Toggle important status instead of forcing true
+            email.is_important = !email.is_important;
+            email.updated_at = chrono::Utc::now();
             self.db.update_email(&email)?;
         }
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn update_email_category(&self, id: &str, category: String) -> Result<()> {
         if let Some(mut email) = self.db.get_email_by_id(id)? {
             email.update_category(category);
@@ -106,6 +109,7 @@ impl EmailService {
     }
 
     // 批量操作功能
+    #[allow(dead_code)]
     pub fn batch_mark_as_read(&self, ids: &[String]) -> Result<()> {
         for id in ids {
             self.mark_email_as_read(id)?;
@@ -113,6 +117,7 @@ impl EmailService {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn batch_mark_as_important(&self, ids: &[String]) -> Result<()> {
         for id in ids {
             self.mark_email_as_important(id)?;
@@ -120,6 +125,7 @@ impl EmailService {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn batch_delete(&self, ids: &[String]) -> Result<()> {
         for id in ids {
             self.delete_email(id)?;
@@ -127,6 +133,7 @@ impl EmailService {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn batch_update_category(&self, ids: &[String], category: String) -> Result<()> {
         for id in ids {
             self.update_email_category(id, category.clone())?;
@@ -135,6 +142,7 @@ impl EmailService {
     }
 
     // 邮件编辑功能
+    #[allow(dead_code)]
     pub fn update_email_content(&self, id: &str, subject: String, body: String) -> Result<()> {
         if let Some(mut email) = self.db.get_email_by_id(id)? {
             email.subject = subject;
@@ -146,18 +154,21 @@ impl EmailService {
     }
 
     // 高级搜索功能
+    #[allow(dead_code)]
     pub fn get_emails_by_sender(&self, sender: &str) -> Result<Vec<Email>> {
         let mut filter = EmailFilter::default();
         filter.sender = Some(sender.to_string());
         self.db.search_emails(&filter)
     }
 
+    #[allow(dead_code)]
     pub fn get_unread_emails(&self) -> Result<Vec<Email>> {
         let mut filter = EmailFilter::default();
         filter.is_read = Some(false);
         self.db.search_emails(&filter)
     }
 
+    #[allow(dead_code)]
     pub fn get_important_emails(&self) -> Result<Vec<Email>> {
         let mut filter = EmailFilter::default();
         filter.is_important = Some(true);
@@ -165,6 +176,7 @@ impl EmailService {
     }
 
     // 邮件归档功能
+    #[allow(dead_code)]
     pub fn archive_email(&self, id: &str) -> Result<()> {
         if let Some(mut email) = self.db.get_email_by_id(id)? {
             // 注意：需要在 Email 模型中添加 is_archived 字段
@@ -174,6 +186,7 @@ impl EmailService {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn batch_archive(&self, ids: &[String]) -> Result<()> {
         for id in ids {
             self.archive_email(id)?;
