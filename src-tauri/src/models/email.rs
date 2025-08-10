@@ -103,6 +103,7 @@ impl EmailFilter {
         self
     }
 
+    #[allow(dead_code)]
     pub fn matches(&self, email: &Email) -> bool {
         // 发件人过滤
         if let Some(sender) = &self.sender {
