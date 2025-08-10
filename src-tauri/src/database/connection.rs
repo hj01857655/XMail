@@ -3,7 +3,7 @@ use rusqlite::{Connection, params};
 use crate::models::email::{Email, EmailFilter};
 
 pub struct Database {
-    conn: Connection,
+    pub conn: Connection,
 }
 
 impl Database {
@@ -15,6 +15,7 @@ impl Database {
     }
 
     fn init_tables(&self) -> Result<()> {
+        // 邮件表
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS emails (
                 id TEXT PRIMARY KEY,
@@ -25,27 +26,136 @@ impl Database {
                 category TEXT NOT NULL,
                 is_read BOOLEAN NOT NULL DEFAULT 0,
                 is_important BOOLEAN NOT NULL DEFAULT 0,
+                account_id INTEGER,
+                message_id TEXT,
                 created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (account_id) REFERENCES email_accounts (id)
+            )",
+            [],
+        )?;
+
+        // 邮件服务商表
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS email_providers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                provider_type TEXT NOT NULL UNIQUE,
+                imap_server TEXT NOT NULL,
+                imap_port INTEGER NOT NULL,
+                smtp_server TEXT NOT NULL,
+                smtp_port INTEGER NOT NULL,
+                use_ssl BOOLEAN NOT NULL DEFAULT 1,
+                use_tls BOOLEAN NOT NULL DEFAULT 1
+            )",
+            [],
+        )?;
+
+        // 邮件账户表
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS email_accounts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider_id INTEGER NOT NULL,
+                email_address TEXT NOT NULL UNIQUE,
+                display_name TEXT NOT NULL,
+                username TEXT NOT NULL,
+                password TEXT NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT 1,
+                last_sync TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (provider_id) REFERENCES email_providers (id)
+            )",
+            [],
+        )?;
+
+        // 邮件分类表
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS email_categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                color TEXT NOT NULL DEFAULT '#007bff',
+                description TEXT,
+                is_system BOOLEAN NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
             )",
             [],
         )?;
 
         // 创建索引以提高查询性能
         self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_sender ON emails(sender)",
+            "CREATE INDEX IF NOT EXISTS idx_emails_sender ON emails(sender)",
             [],
         )?;
         
         self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_recipient ON emails(recipient)",
+            "CREATE INDEX IF NOT EXISTS idx_emails_recipient ON emails(recipient)",
             [],
         )?;
         
         self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_category ON emails(category)",
+            "CREATE INDEX IF NOT EXISTS idx_emails_category ON emails(category)",
             [],
         )?;
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_emails_account ON emails(account_id)",
+            [],
+        )?;
+
+        // 初始化默认数据
+        self.init_default_data()?;
+
+        Ok(())
+    }
+
+    fn init_default_data(&self) -> Result<()> {
+        // 插入预设的邮件服务商
+        use crate::models::email_provider::EmailProvider;
+        
+        let providers = EmailProvider::get_predefined_providers();
+        for provider in providers {
+            self.conn.execute(
+                "INSERT OR IGNORE INTO email_providers 
+                 (id, name, provider_type, imap_server, imap_port, smtp_server, smtp_port, use_ssl, use_tls)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    provider.id,
+                    provider.name,
+                    provider.provider_type,
+                    provider.imap_server,
+                    provider.imap_port,
+                    provider.smtp_server,
+                    provider.smtp_port,
+                    provider.use_ssl,
+                    provider.use_tls
+                ],
+            )?;
+        }
+
+        // 插入默认分类
+        let default_categories = vec![
+            ("收件箱", "#007bff", "接收的邮件", true),
+            ("发件箱", "#28a745", "发送的邮件", true),
+            ("草稿箱", "#ffc107", "草稿邮件", true),
+            ("垃圾箱", "#dc3545", "已删除的邮件", true),
+            ("工作", "#6f42c1", "工作相关邮件", false),
+            ("个人", "#fd7e14", "个人邮件", false),
+            ("重要", "#e83e8c", "重要邮件", false),
+        ];
+
+        for (name, color, desc, is_system) in default_categories {
+            self.conn.execute(
+                "INSERT OR IGNORE INTO email_categories (name, color, description, is_system, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![
+                    name,
+                    color,
+                    desc,
+                    is_system,
+                    chrono::Utc::now().to_rfc3339()
+                ],
+            )?;
+        }
 
         Ok(())
     }

@@ -1,28 +1,42 @@
-use crate::services::EmailService;
-use crate::models::{Email, EmailFilter};
+use crate::database::connection::Database;
+use crate::models::email::{Email, EmailFilter};
 use tauri::State;
 use std::sync::Mutex;
 
 #[tauri::command]
 pub async fn get_all_emails(
-    service: State<'_, Mutex<EmailService>>
+    db: State<'_, Mutex<Database>>
 ) -> Result<Vec<Email>, String> {
-    let service = service.lock().map_err(|e| e.to_string())?;
-    service.get_all_emails().map_err(|e| e.to_string())
+    let db = db.lock().map_err(|e| e.to_string())?;
+    db.get_all_emails().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn create_email(
-    service: State<'_, Mutex<EmailService>>,
+    db: State<'_, Mutex<Database>>,
     sender: String,
     recipient: String,
     subject: String,
     body: String,
     category: String,
 ) -> Result<String, String> {
-    let service = service.lock().map_err(|e| e.to_string())?;
-    service.create_email(sender, recipient, subject, body, category)
-        .map_err(|e| e.to_string())
+    let db = db.lock().map_err(|e| e.to_string())?;
+    
+    let email = Email {
+        id: uuid::Uuid::new_v4().to_string(),
+        sender,
+        recipient,
+        subject,
+        body,
+        category,
+        is_read: false,
+        is_important: false,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    
+    db.insert_email(&email).map_err(|e| e.to_string())?;
+    Ok(email.id)
 }
 
 #[tauri::command]
