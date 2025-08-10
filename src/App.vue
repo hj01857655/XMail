@@ -46,6 +46,9 @@
           </select>
         </div>
 
+        <!-- 分类管理 -->
+        <CategoryManager @categories-updated="loadCategories" />
+
         <div class="actions">
           <button @click="showCreateModal = true" class="btn btn-primary">新建邮件</button>
           <button @click="showAccountModal = true" class="btn btn-info">账户管理</button>
@@ -175,11 +178,13 @@
 <script>
 import { invoke } from '@tauri-apps/api/core'
 import AccountManager from './components/AccountManager.vue'
+import CategoryManager from './components/CategoryManager.vue'
 
 export default {
   name: 'App',
   components: {
-    AccountManager
+    AccountManager,
+    CategoryManager
   },
   data() {
     return {

@@ -67,6 +67,11 @@ impl<'a> ProviderService<'a> {
 
     // 邮件账户管理
     pub fn add_email_account(&self, account: &EmailAccount) -> Result<i64> {
+        use crate::services::crypto_service::CryptoService;
+        
+        // 加密密码
+        let encrypted_password = CryptoService::encrypt_password(&account.password);
+        
         let result = self.conn.execute(
             "INSERT INTO email_accounts 
              (provider_id, email_address, display_name, username, password, is_active, created_at)
@@ -76,7 +81,7 @@ impl<'a> ProviderService<'a> {
                 account.email_address,
                 account.display_name,
                 account.username,
-                account.password, // 注意：实际应用中应该加密存储
+                encrypted_password, // 存储加密后的密码
                 account.is_active,
                 chrono::Utc::now().to_rfc3339()
             ],
@@ -86,6 +91,8 @@ impl<'a> ProviderService<'a> {
     }
 
     pub fn get_all_accounts(&self) -> Result<Vec<EmailAccount>> {
+        use crate::services::crypto_service::CryptoService;
+        
         let mut stmt = self.conn.prepare(
             "SELECT a.id, a.provider_id, a.email_address, a.display_name, a.username, 
                     a.password, a.is_active, a.last_sync, a.created_at
@@ -94,13 +101,17 @@ impl<'a> ProviderService<'a> {
         )?;
 
         let account_iter = stmt.query_map([], |row| {
+            let encrypted_password: String = row.get(5)?;
+            let decrypted_password = CryptoService::decrypt_password(&encrypted_password)
+                .unwrap_or_else(|_| "***".to_string()); // 解密失败时显示占位符
+            
             Ok(EmailAccount {
                 id: row.get(0)?,
                 provider_id: row.get(1)?,
                 email_address: row.get(2)?,
                 display_name: row.get(3)?,
                 username: row.get(4)?,
-                password: row.get(5)?,
+                password: decrypted_password,
                 is_active: row.get(6)?,
                 last_sync: row.get(7)?,
                 created_at: row.get(8)?,

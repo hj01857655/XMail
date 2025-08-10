@@ -16,22 +16,59 @@ impl EmailSyncService {
     }
 
     pub async fn connect_imap(&self) -> Result<Session<TlsStream<TcpStream>>> {
+        use crate::services::crypto_service::CryptoService;
+        
         let domain = &self.provider.imap_server;
         let port = self.provider.imap_port;
 
-        // 建立TCP连接
-        let tcp_stream = TcpStream::connect((domain.as_str(), port))?;
+        // 解密密码
+        let password = CryptoService::decrypt_password(&self.account.password)?;
+
+        // 重试连接（最多3次）
+        let mut attempts = 0;
+        let max_attempts = 3;
+        
+        while attempts < max_attempts {
+            attempts += 1;
+            
+            match self.try_connect_imap(domain, port, &password).await {
+                Ok(session) => return Ok(session),
+                Err(e) => {
+                    eprintln!("IMAP连接失败 (尝试 {}/{}): {}", attempts, max_attempts, e);
+                    if attempts < max_attempts {
+                        // 指数退避：等待 2^attempts 秒
+                        let delay = std::time::Duration::from_secs(2_u64.pow(attempts));
+                        tokio::time::sleep(delay).await;
+                    } else {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+        
+        Err(anyhow!("IMAP连接失败，已重试 {} 次", max_attempts))
+    }
+
+    async fn try_connect_imap(&self, domain: &str, port: u16, password: &str) -> Result<Session<TlsStream<TcpStream>>> {
+        // 建立TCP连接（30秒超时）
+        let tcp_stream = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            tokio::net::TcpStream::connect((domain, port))
+        ).await??;
+        
+        // 转换为同步流
+        let std_stream = tcp_stream.into_std()?;
         
         // 建立TLS连接
         let tls = TlsConnector::new()?;
-        let tls_stream = tls.connect(domain, tcp_stream)?;
+        let tls_stream = tls.connect(domain, std_stream)?;
 
         // 创建IMAP会话
         let client = imap::Client::new(tls_stream);
         
         // 登录
         let session = client
-            .login(&self.account.username, &self.account.password)
+            .login(&self.account.username, password)
             .map_err(|e| anyhow!("IMAP登录失败: {:?}", e.0))?;
 
         Ok(session)
