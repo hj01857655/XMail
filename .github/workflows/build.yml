@@ -22,7 +22,7 @@ jobs:
             args: '--target x86_64-apple-darwin'
             target: 'x86_64-apple-darwin'
           - platform: 'windows-latest'
-            args: ''
+            args: '--bundles msi'
             target: ''
 
     runs-on: ${{ matrix.platform }}
@@ -47,6 +47,24 @@ jobs:
           workspaces: './src-tauri -> target'
           cache-on-failure: true
           shared-key: ${{ matrix.platform }}
+
+      # Cache WiX tools to avoid repeated downloads on Windows
+      - name: Cache WiX tools (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: actions/cache@v4
+        with:
+          path: C:\\Users\\runneradmin\\AppData\\Local\\tauri\\WixTools314
+          key: wix314-windows-cache
+
+      # Install and enable sccache on Windows to speed up Rust compilation
+      - name: Install sccache (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: powershell
+        run: |
+          choco install -y sccache
+          echo "RUSTC_WRAPPER=sccache" >> $Env:GITHUB_ENV
+          echo "SCCACHE_CACHE_SIZE=1G" >> $Env:GITHUB_ENV
+          echo "SCCACHE_DIR=$Env:LOCALAPPDATA\\Mozilla\\sccache" >> $Env:GITHUB_ENV
 
       - name: Install frontend dependencies
         run: npm ci --prefer-offline --no-audit
@@ -99,27 +117,33 @@ jobs:
           tagName: ${{ steps.names.outputs.tag }}
           releaseName: 'XMail ${{ steps.names.outputs.tag }}'
           releaseBody: |
-            ## 📧 XMail 邮件管理系统
+            ## XMail
             
-            ### 🚀 新版本发布
+            ### 
             
-            **下载说明：**
-            - Windows: 下载 `.msi` 或 `.exe` 文件
-            - macOS: 下载 `.dmg` 文件
+            **:**
+            - Windows: `.msi` `.exe` 
+            - macOS: `.dmg` 
             
-            ### ✨ 主要功能
-            - 📧 邮件管理 (创建、查看、编辑、删除)
-            - 🔍 强大的搜索和筛选功能
-            - 📊 邮件统计信息
-            - 🎨 现代化用户界面
-            - 🚀 跨平台支持
+            ### 
+            - (, , , )
+            - 
+            - 
+            - 
+            - 
             
-            ### 🛠️ 技术栈
-            - 前端: Vue.js 3 + Vite
-            - 后端: Rust + Tauri
-            - 数据库: SQLite
+            ### 
+            - : Vue.js 3 + Vite
+            - : Rust + Tauri
+            - : SQLite
             
-            如有问题请在 [Issues](https://github.com/hj01857655/XMail/issues) 中反馈。
+            [Issues](https://github.com/hj01857655/XMail/issues) .
           releaseDraft: false
           prerelease: ${{ steps.names.outputs.is_tag_push != 'true' }}
           args: ${{ matrix.args }}
+
+      - name: sccache stats (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: powershell
+        run: |
+          sccache --show-stats || echo "sccache not available"
