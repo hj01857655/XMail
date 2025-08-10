@@ -48,6 +48,7 @@
 
         <div class="actions">
           <button @click="showCreateModal = true" class="btn btn-primary">新建邮件</button>
+          <button @click="showAccountModal = true" class="btn btn-info">账户管理</button>
           <button @click="refreshData" class="btn btn-success">刷新</button>
         </div>
       </aside>
@@ -155,14 +156,31 @@
         </div>
       </div>
     </div>
+
+    <!-- 账户管理模态框 -->
+    <div v-if="showAccountModal" class="modal-overlay" @click="showAccountModal = false">
+      <div class="modal-content fullscreen" @click.stop>
+        <div class="modal-header">
+          <h2>邮件账户管理</h2>
+          <button @click="showAccountModal = false" class="modal-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <AccountManager @emails-synced="onEmailsSynced" />
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 import { invoke } from '@tauri-apps/api/core'
+import AccountManager from './components/AccountManager.vue'
 
 export default {
   name: 'App',
+  components: {
+    AccountManager
+  },
   data() {
     return {
       emails: [],
@@ -184,6 +202,7 @@ export default {
       
       // 创建邮件
       showCreateModal: false,
+      showAccountModal: false,
       newEmail: {
         sender: '',
         recipient: '',
@@ -358,7 +377,39 @@ export default {
     truncateText(text, maxLength) {
       if (text.length <= maxLength) return text
       return text.substring(0, maxLength) + '...'
+    },
+
+    onEmailsSynced(emails) {
+      // 处理同步的邮件
+      console.log('同步了邮件:', emails)
+      // 刷新邮件列表
+      this.refreshData()
     }
   }
 }
 </script>
+
+<style>
+.modal-content.fullscreen {
+  width: 95%;
+  height: 90%;
+  max-width: none;
+  max-height: none;
+}
+
+.modal-content.fullscreen .modal-body {
+  height: calc(100% - 120px);
+  overflow-y: auto;
+}
+
+.btn-info {
+  background-color: #17a2b8;
+  color: white;
+  border: 1px solid #17a2b8;
+}
+
+.btn-info:hover {
+  background-color: #138496;
+  border-color: #117a8b;
+}
+</style>
