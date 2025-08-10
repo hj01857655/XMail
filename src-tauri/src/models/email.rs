@@ -43,6 +43,7 @@ impl Email {
         self.updated_at = Utc::now();
     }
 
+    #[allow(dead_code)]
     pub fn mark_as_important(&mut self) {
         self.is_important = true;
         self.updated_at = Utc::now();
