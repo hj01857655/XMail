@@ -72,6 +72,23 @@ jobs:
           fi
           echo "ref_name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
+      - name: Create and push tag (for non-tag pushes)
+        if: steps.names.outputs.is_tag_push != 'true'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          # Avoid re-creating if exists
+          if git rev-parse -q --verify "refs/tags/${{ steps.names.outputs.tag }}" >/dev/null; then
+            echo "Tag already exists: ${{ steps.names.outputs.tag }}"
+          else
+            git tag -a "${{ steps.names.outputs.tag }}" -m "Auto tag from CI"
+            git push origin "${{ steps.names.outputs.tag }}"
+          fi
+
       - name: Build the app
         uses: tauri-apps/tauri-action@v0
         env:
