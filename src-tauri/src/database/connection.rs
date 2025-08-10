@@ -1,6 +1,6 @@
 use anyhow::Result;
 use rusqlite::{Connection, params};
-use crate::models::email::{Email, EmailFilter, Priority, EmailStatus};
+use crate::models::email::{Email, EmailFilter};
 
 pub struct Database {
     conn: Connection,
@@ -55,19 +55,11 @@ impl Database {
             id: row.get(0)?,
             sender: row.get(1)?,
             recipient: row.get(2)?,
-            cc: Vec::new(),
-            bcc: Vec::new(),
             subject: row.get(3)?,
             body: row.get(4)?,
-            html_body: None,
             category: row.get(5)?,
-            tags: Vec::new(),
-            priority: Priority::Normal,
-            status: EmailStatus::Received,
-            attachments: Vec::new(),
             is_read: row.get(6)?,
             is_important: row.get(7)?,
-            is_archived: false,
             created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)
                 .unwrap()
                 .with_timezone(&chrono::Utc),
