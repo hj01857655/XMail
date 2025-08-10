@@ -144,3 +144,55 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
+  sync-version:
+    needs: [check-release, build]
+    runs-on: ubuntu-latest
+    if: needs.check-release.outputs.should_release == 'true'
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Update project files with new version
+        run: |
+          VERSION="${{ needs.check-release.outputs.version }}"
+          VERSION_NUMBER="${VERSION#v}"  # 移除 v 前缀
+          
+          echo "同步版本号到项目文件: $VERSION_NUMBER"
+          
+          # 更新 package.json
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" package.json
+          
+          # 更新 src-tauri/tauri.conf.json
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" src-tauri/tauri.conf.json
+          
+          # 更新 src-tauri/Cargo.toml
+          sed -i "s/^version = \".*\"/version = \"$VERSION_NUMBER\"/" src-tauri/Cargo.toml
+          
+          # 检查是否有变化
+          if git diff --quiet; then
+            echo "版本号已经是最新的，无需更新"
+          else
+            echo "发现版本号变化，提交更新"
+            
+            # 配置 git
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            
+            # 提交变化
+            git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+            git commit -m "chore: sync version to $VERSION
+
+[skip ci]"
+            
+            # 推送到远程
+            git push origin master
+            
+            echo "✅ 版本号已同步到项目文件"
+          fi
+
