@@ -88,6 +88,25 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci --prefer-offline --no-audit
 
+      - name: Update version for release
+        if: needs.check-release.outputs.should_release == 'true'
+        run: |
+          VERSION="${{ needs.check-release.outputs.version }}"
+          VERSION_NUMBER="${VERSION#v}"  # 移除 v 前缀
+          
+          echo "更新版本号到: $VERSION_NUMBER"
+          
+          # 更新 package.json
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" package.json
+          
+          # 更新 src-tauri/tauri.conf.json
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" src-tauri/tauri.conf.json
+          
+          # 更新 src-tauri/Cargo.toml
+          sed -i "s/^version = \".*\"/version = \"$VERSION_NUMBER\"/" src-tauri/Cargo.toml
+          
+          echo "版本号更新完成"
+
       - name: Build for testing (no release)
         if: needs.check-release.outputs.should_release != 'true'
         uses: tauri-apps/tauri-action@v0
