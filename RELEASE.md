@@ -2,7 +2,17 @@
 
 ## 如何创建正式版本
 
-### 方法一：使用 GitHub Actions (推荐)
+### 方法一：自动发布 (最简单)
+
+在提交消息中添加自动发布标记：
+```bash
+git commit -m "feat: 添加新功能 [auto-release:v1.0.1]"
+git push
+```
+
+CI 构建成功后会自动触发发布流程。
+
+### 方法二：使用 GitHub Actions (手动)
 
 1. 访问 GitHub 仓库的 Actions 页面
 2. 选择 "Create Release" 工作流
@@ -66,10 +76,34 @@
 4. 创建 Release 后，GitHub Actions 会自动构建并上传安装包
 5. 如果需要撤回发布，可以在 GitHub Releases 页面删除对应的发布
 
+## 自动发布说明
+
+### 触发条件
+- CI 构建成功
+- 提交消息包含 `[auto-release:v1.0.1]` 格式的标记
+
+### 标记格式
+```
+[auto-release:v主版本.次版本.修订号]
+```
+
+### 示例
+```bash
+# 修复 bug 并发布补丁版本
+git commit -m "fix: 修复邮件删除问题 [auto-release:v1.0.1]"
+
+# 添加新功能并发布次版本
+git commit -m "feat: 添加邮件导出功能 [auto-release:v1.1.0]"
+
+# 重大更新并发布主版本
+git commit -m "feat!: 重构邮件存储架构 [auto-release:v2.0.0]"
+```
+
 ## 首次发布
 
 如果这是项目的首次发布，建议：
 
-1. 使用 GitHub Actions 创建 v1.0.0 版本
-2. 等待构建完成后，检查 Releases 页面是否有安装包
-3. 测试下载的安装包是否正常工作
+1. 使用自动发布: `git commit -m "chore: 首次发布 [auto-release:v1.0.0]"`
+2. 或使用 GitHub Actions 手动创建 v1.0.0 版本
+3. 等待构建完成后，检查 Releases 页面是否有安装包
+4. 测试下载的安装包是否正常工作

@@ -52,3 +52,12 @@ jobs:
           RUST_BACKTRACE: 1
         with:
           args: ${{ matrix.args }}
+
+      - name: Build success notification
+        if: success() && matrix.platform == 'windows-latest'
+        run: |
+          echo "✅ 构建测试成功！"
+          echo ""
+          echo "发布选项："
+          echo "1. 手动发布: 访问 Actions → 'Create Release'"
+          echo "2. 自动发布: 在提交消息中添加 [auto-release:v1.0.1] 标记"
