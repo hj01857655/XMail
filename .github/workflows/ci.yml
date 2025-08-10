@@ -6,10 +6,22 @@ on:
   pull_request:
     branches: [ main, master ]
 
+# 全局环境变量
+env:
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+  CARGO_NET_RETRY: 10
+
+# 全局权限设置
+permissions:
+  contents: read
+
 jobs:
   check-release:
+    name: 'Check Release Requirements'
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'master')
+    timeout-minutes: 5
     
     steps:
       - name: Checkout repository
@@ -36,7 +48,9 @@ jobs:
       version: ${{ steps.check.outputs.version }}
 
   build:
+    name: 'Build (${{ matrix.platform }})'
     needs: check-release
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -44,12 +58,15 @@ jobs:
           - platform: 'macos-latest'
             args: '--target aarch64-apple-darwin'
             target: 'aarch64-apple-darwin'
+            os-name: 'macOS'
           - platform: 'macos-latest'
             args: '--target x86_64-apple-darwin'
             target: 'x86_64-apple-darwin'
+            os-name: 'macOS'
           - platform: 'windows-latest'
             args: '--bundles msi,nsis'
             target: ''
+            os-name: 'Windows'
 
     runs-on: ${{ matrix.platform }}
     permissions:
@@ -96,23 +113,24 @@ jobs:
           
           echo "更新版本号到: $VERSION_NUMBER"
           
-          # 更新 package.json
-          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" package.json
-          
-          # 更新 src-tauri/tauri.conf.json
-          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" src-tauri/tauri.conf.json
-          
-          # 更新 src-tauri/Cargo.toml
-          sed -i "s/^version = \".*\"/version = \"$VERSION_NUMBER\"/" src-tauri/Cargo.toml
+          # 跨平台兼容的 sed 命令
+          if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS (BSD sed)
+            sed -i '' "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" package.json
+            sed -i '' "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" src-tauri/tauri.conf.json
+            sed -i '' "s/^version = \".*\"/version = \"$VERSION_NUMBER\"/" src-tauri/Cargo.toml
+          else
+            # Linux (GNU sed)
+            sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" package.json
+            sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" src-tauri/tauri.conf.json
+            sed -i "s/^version = \".*\"/version = \"$VERSION_NUMBER\"/" src-tauri/Cargo.toml
+          fi
           
           echo "版本号更新完成"
 
       - name: Build for testing (no release)
         if: needs.check-release.outputs.should_release != 'true'
         uses: tauri-apps/tauri-action@v0
-        env:
-          CARGO_INCREMENTAL: 0
-          RUST_BACKTRACE: 1
         with:
           args: ${{ matrix.args }}
 
@@ -121,8 +139,6 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CARGO_INCREMENTAL: 0
-          RUST_BACKTRACE: 1
         with:
           tagName: ${{ needs.check-release.outputs.version }}
           releaseName: 'XMail ${{ needs.check-release.outputs.version }}'
@@ -145,9 +161,11 @@ jobs:
           args: ${{ matrix.args }}
 
   sync-version:
+    name: 'Sync Version to Repository'
     needs: [check-release, build]
     runs-on: ubuntu-latest
     if: needs.check-release.outputs.should_release == 'true'
+    timeout-minutes: 10
     permissions:
       contents: write
     
@@ -165,13 +183,9 @@ jobs:
           
           echo "同步版本号到项目文件: $VERSION_NUMBER"
           
-          # 更新 package.json
+          # 跨平台兼容的版本更新 (这里运行在 ubuntu，使用 GNU sed)
           sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" package.json
-          
-          # 更新 src-tauri/tauri.conf.json
           sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" src-tauri/tauri.conf.json
-          
-          # 更新 src-tauri/Cargo.toml
           sed -i "s/^version = \".*\"/version = \"$VERSION_NUMBER\"/" src-tauri/Cargo.toml
           
           # 检查是否有变化
@@ -192,4 +206,13 @@ jobs:
             git push origin master
             
             echo "✅ 版本号已同步到项目文件"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ "${{ needs.check-release.outputs.should_release }}" == "true" ]; then
+            echo "## 🚀 发布完成" >> $GITHUB_STEP_SUMMARY
+            echo "版本: ${{ needs.check-release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+            echo "发布地址: https://github.com/${{ github.repository }}/releases/tag/${{ needs.check-release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           fi
