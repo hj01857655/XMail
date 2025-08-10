@@ -104,18 +104,24 @@ jobs:
           
           # 创建 GitHub Release
           COMMIT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          cat > release_notes.md << EOF
+          ## 自动发布 $VERSION
+          
+          🤖 此版本由 CI 成功后自动发布
+          
+          ### 📦 安装包下载
+          - Windows: \`.msi\` 安装包  
+          - macOS: \`.dmg\` 安装包 (支持 Intel 和 Apple Silicon)
+          
+          ### 🔗 相关信息
+          - 基于提交: $COMMIT_SHA
+          - 构建时间: $BUILD_TIME
+          
+          如有问题请访问 [Issues](https://github.com/hj01857655/XMail/issues) 页面反馈。
+          EOF
+          
           gh release create "$VERSION" \
             --title "XMail $VERSION" \
-            --notes "## 自动发布 $VERSION
-
-🤖 此版本由 CI 成功后自动发布
-
-### 📦 安装包下载
-- Windows: \`.msi\` 安装包  
-- macOS: \`.dmg\` 安装包 (支持 Intel 和 Apple Silicon)
-
-### 🔗 相关信息
-- 基于提交: $COMMIT_SHA
-- 构建时间: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-
-如有问题请访问 [Issues](https://github.com/hj01857655/XMail/issues) 页面反馈。"
+            --notes-file release_notes.md
