@@ -2,7 +2,7 @@
 
 ## 如何创建正式版本
 
-### 方法一：自动发布 (最简单)
+### 自动发布 (推荐)
 
 在提交消息中添加自动发布标记：
 ```bash
@@ -10,41 +10,18 @@ git commit -m "feat: 添加新功能 [auto-release:v1.0.1]"
 git push
 ```
 
-CI 构建成功后会自动触发发布流程。
+CI 构建成功后会自动创建 GitHub Release 并构建安装包。
 
-### 方法二：使用 GitHub Actions (手动)
+### 手动发布
 
-1. 访问 GitHub 仓库的 Actions 页面
-2. 选择 "Create Release" 工作流
-3. 点击 "Run workflow"
-4. 填写版本号 (格式: v1.0.1) 和发布说明
-5. 点击 "Run workflow" 开始创建发布
+直接在 GitHub 仓库页面创建 Release：
+1. 访问 GitHub 仓库页面
+2. 点击 "Releases" → "Create a new release"
+3. 输入标签 (如 v1.0.1) 和发布说明
+4. 点击 "Publish release"
+5. 系统会自动构建并上传安装包
 
-### 方法二：手动创建
 
-1. 更新版本号：
-   ```bash
-   # 更新 package.json
-   npm version 1.0.1 --no-git-tag-version
-   
-   # 更新 src-tauri/tauri.conf.json 中的 version
-   # 更新 src-tauri/Cargo.toml 中的 version
-   ```
-
-2. 提交更改：
-   ```bash
-   git add .
-   git commit -m "chore: bump version to v1.0.1"
-   git push
-   ```
-
-3. 创建标签：
-   ```bash
-   git tag -a v1.0.1 -m "Release v1.0.1"
-   git push origin v1.0.1
-   ```
-
-4. 在 GitHub 上创建 Release，构建将自动开始
 
 ## 版本号规范
 

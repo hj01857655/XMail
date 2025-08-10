@@ -1,4 +1,4 @@
-name: 'CI Build'
+name: 'CI and Auto Release'
 
 on:
   push:
@@ -53,11 +53,69 @@ jobs:
         with:
           args: ${{ matrix.args }}
 
-      - name: Build success notification
-        if: success() && matrix.platform == 'windows-latest'
+  auto-release:
+    needs: test-build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'master')
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check for auto-release tag
+        id: check
         run: |
-          echo "✅ 构建测试成功！"
-          echo ""
-          echo "发布选项："
-          echo "1. 手动发布: 访问 Actions → 'Create Release'"
-          echo "2. 自动发布: 在提交消息中添加 [auto-release:v1.0.1] 标记"
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "Commit message: $COMMIT_MSG"
+          
+          if echo "$COMMIT_MSG" | grep -q "\[auto-release:v[0-9]\+\.[0-9]\+\.[0-9]\+\]"; then
+            VERSION=$(echo "$COMMIT_MSG" | grep -o "v[0-9]\+\.[0-9]\+\.[0-9]\+" | head -1)
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "🚀 检测到自动发布标记: $VERSION"
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "✅ 构建测试成功！如需自动发布，请在提交消息中添加 [auto-release:v1.0.1] 标记"
+          fi
+
+      - name: Update version and create release
+        if: steps.check.outputs.should_release == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.check.outputs.version }}"
+          VERSION_NUMBER="${VERSION#v}"
+          
+          # 更新版本号
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" package.json
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" src-tauri/tauri.conf.json
+          sed -i "s/^version = \".*\"/version = \"$VERSION_NUMBER\"/" src-tauri/Cargo.toml
+          
+          # 提交版本更改
+          git config user.name "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+          git commit -m "chore: bump version to $VERSION"
+          git push
+          
+          # 创建标签
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION"
+          
+          # 创建 GitHub Release
+          COMMIT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          gh release create "$VERSION" \
+            --title "XMail $VERSION" \
+            --notes "## 自动发布 $VERSION
+
+🤖 此版本由 CI 成功后自动发布
+
+### 📦 安装包下载
+- Windows: \`.msi\` 安装包  
+- macOS: \`.dmg\` 安装包 (支持 Intel 和 Apple Silicon)
+
+### 🔗 相关信息
+- 基于提交: $COMMIT_SHA
+- 构建时间: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+如有问题请访问 [Issues](https://github.com/hj01857655/XMail/issues) 页面反馈。"
