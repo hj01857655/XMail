@@ -2,8 +2,10 @@ name: 'Build and Release'
 
 on:
   push:
+    branches: [ main, master ]
     tags:
       - 'v*'
+  workflow_dispatch:
 
 jobs:
   build-tauri:
@@ -55,6 +57,21 @@ jobs:
           echo "CARGO_NET_RETRY=10" >> $GITHUB_ENV
           echo "RUST_BACKTRACE=1" >> $GITHUB_ENV
 
+      - name: Compute tag and release names
+        id: names
+        shell: bash
+        run: |
+          # If this is a tag push (refs/tags/*), use that tag. Else generate nightly tag
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+            echo "is_tag_push=true" >> "$GITHUB_OUTPUT"
+          else
+            ts=$(date -u +"%Y%m%d-%H%M%S")
+            echo "tag=nightly-${ts}-${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "is_tag_push=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "ref_name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
       - name: Build the app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -62,8 +79,8 @@ jobs:
           CARGO_INCREMENTAL: 1
           RUST_BACKTRACE: 1
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'XMail v${{ github.ref_name }}'
+          tagName: ${{ steps.names.outputs.tag }}
+          releaseName: 'XMail ${{ steps.names.outputs.tag }}'
           releaseBody: |
             ## 📧 XMail 邮件管理系统
             
@@ -87,5 +104,5 @@ jobs:
             
             如有问题请在 [Issues](https://github.com/hj01857655/XMail/issues) 中反馈。
           releaseDraft: false
-          prerelease: false
+          prerelease: ${{ steps.names.outputs.is_tag_push != 'true' }}
           args: ${{ matrix.args }}
