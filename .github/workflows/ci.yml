@@ -186,13 +186,10 @@ jobs:
             
             # 提交变化
             git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
-            git commit -m "chore: sync version to $VERSION
-
-[skip ci]"
+            git commit -m "chore: sync version to $VERSION [skip ci]"
             
             # 推送到远程
             git push origin master
             
             echo "✅ 版本号已同步到项目文件"
           fi
-
