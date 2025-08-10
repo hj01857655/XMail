@@ -41,13 +41,13 @@ pub async fn create_email(
 
 #[tauri::command]
 pub async fn search_emails(
-    service: State<'_, Mutex<EmailService>>,
+    db: State<'_, Mutex<Database>>,
     keyword: Option<String>,
     category: Option<String>,
     unread_only: Option<bool>,
     important_only: Option<bool>,
 ) -> Result<Vec<Email>, String> {
-    let service = service.lock().map_err(|e| e.to_string())?;
+    let db = db.lock().map_err(|e| e.to_string())?;
     
     let mut filter = EmailFilter::new();
     
@@ -64,66 +64,81 @@ pub async fn search_emails(
         filter = filter.important_only();
     }
     
-    service.search_emails(filter).map_err(|e| e.to_string())
+    db.search_emails(&filter).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn get_email(
-    service: State<'_, Mutex<EmailService>>,
+    db: State<'_, Mutex<Database>>,
     id: String,
 ) -> Result<Option<Email>, String> {
-    let service = service.lock().map_err(|e| e.to_string())?;
-    service.get_email(&id).map_err(|e| e.to_string())
+    let db = db.lock().map_err(|e| e.to_string())?;
+    db.get_email_by_id(&id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn mark_email_as_read(
-    service: State<'_, Mutex<EmailService>>,
+    db: State<'_, Mutex<Database>>,
     id: String,
 ) -> Result<(), String> {
-    let service = service.lock().map_err(|e| e.to_string())?;
-    service.mark_email_as_read(&id).map_err(|e| e.to_string())
+    let db = db.lock().map_err(|e| e.to_string())?;
+    
+    if let Some(mut email) = db.get_email_by_id(&id).map_err(|e| e.to_string())? {
+        email.is_read = true;
+        email.updated_at = chrono::Utc::now();
+        db.update_email(&email).map_err(|e| e.to_string())?;
+    }
+    
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn mark_email_as_important(
-    service: State<'_, Mutex<EmailService>>,
+    db: State<'_, Mutex<Database>>,
     id: String,
 ) -> Result<(), String> {
-    let service = service.lock().map_err(|e| e.to_string())?;
-    service.mark_email_as_important(&id).map_err(|e| e.to_string())
+    let db = db.lock().map_err(|e| e.to_string())?;
+    
+    if let Some(mut email) = db.get_email_by_id(&id).map_err(|e| e.to_string())? {
+        email.is_important = !email.is_important;
+        email.updated_at = chrono::Utc::now();
+        db.update_email(&email).map_err(|e| e.to_string())?;
+    }
+    
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn delete_email(
-    service: State<'_, Mutex<EmailService>>,
+    db: State<'_, Mutex<Database>>,
     id: String,
 ) -> Result<(), String> {
-    let service = service.lock().map_err(|e| e.to_string())?;
-    service.delete_email(&id).map_err(|e| e.to_string())
+    let db = db.lock().map_err(|e| e.to_string())?;
+    db.delete_email(&id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn get_categories(
-    service: State<'_, Mutex<EmailService>>
+    db: State<'_, Mutex<Database>>
 ) -> Result<Vec<String>, String> {
-    let service = service.lock().map_err(|e| e.to_string())?;
-    service.get_categories().map_err(|e| e.to_string())
+    let db = db.lock().map_err(|e| e.to_string())?;
+    db.get_categories().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn get_statistics(
-    service: State<'_, Mutex<EmailService>>
+    db: State<'_, Mutex<Database>>
 ) -> Result<serde_json::Value, String> {
-    let service = service.lock().map_err(|e| e.to_string())?;
-    let stats = service.get_statistics().map_err(|e| e.to_string())?;
+    let db = db.lock().map_err(|e| e.to_string())?;
+    
+    let total_count = db.get_email_count().map_err(|e| e.to_string())?;
+    let unread_count = db.get_unread_count().map_err(|e| e.to_string())?;
+    let important_count = db.get_important_count().map_err(|e| e.to_string())?;
     
     let json = serde_json::json!({
-        "total_count": stats.total_count,
-        "read_count": stats.read_count,
-        "unread_count": stats.unread_count,
-        "important_count": stats.important_count,
-        "category_counts": stats.category_counts
+        "total_count": total_count,
+        "unread_count": unread_count,
+        "important_count": important_count
     });
     
     Ok(json)

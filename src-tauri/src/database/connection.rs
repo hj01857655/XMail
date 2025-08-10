@@ -329,4 +329,10 @@ impl Database {
         let count: i64 = stmt.query_row([], |row| row.get(0))?;
         Ok(count as usize)
     }
+
+    pub fn get_important_count(&self) -> Result<usize> {
+        let mut stmt = self.conn.prepare("SELECT COUNT(*) FROM emails WHERE is_important = 1")?;
+        let count: i64 = stmt.query_row([], |row| row.get(0))?;
+        Ok(count as usize)
+    }
 }

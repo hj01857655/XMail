@@ -54,6 +54,9 @@
           <button @click="showAccountModal = true" class="btn btn-info">账户管理</button>
           <button @click="refreshData" class="btn btn-success">刷新</button>
         </div>
+
+        <!-- 分类管理组件 -->
+        <CategoryManager @categories-updated="loadCategories" />
       </aside>
 
       <!-- 邮件列表 -->
@@ -178,6 +181,7 @@
 <script>
 import { invoke } from '@tauri-apps/api/core'
 import AccountManager from './components/AccountManager.vue'
+import CategoryManager from './components/CategoryManager.vue'
 import CategoryManager from './components/CategoryManager.vue'
 
 export default {
