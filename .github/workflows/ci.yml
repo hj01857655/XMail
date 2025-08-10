@@ -105,15 +105,16 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci --prefer-offline --no-audit
 
-      - name: Update version for release
-        if: needs.check-release.outputs.should_release == 'true'
+      - name: Update version for release (Unix)
+        if: needs.check-release.outputs.should_release == 'true' && matrix.platform != 'windows-latest'
+        shell: bash
         run: |
           VERSION="${{ needs.check-release.outputs.version }}"
           VERSION_NUMBER="${VERSION#v}"  # 移除 v 前缀
           
           echo "更新版本号到: $VERSION_NUMBER"
           
-          # 跨平台兼容的 sed 命令
+          # 检测操作系统类型
           if [[ "$OSTYPE" == "darwin"* ]]; then
             # macOS (BSD sed)
             sed -i '' "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" package.json
@@ -127,6 +128,22 @@ jobs:
           fi
           
           echo "版本号更新完成"
+
+      - name: Update version for release (Windows)
+        if: needs.check-release.outputs.should_release == 'true' && matrix.platform == 'windows-latest'
+        shell: powershell
+        run: |
+          $VERSION = "${{ needs.check-release.outputs.version }}"
+          $VERSION_NUMBER = $VERSION -replace '^v', ''  # 移除 v 前缀
+          
+          Write-Host "更新版本号到: $VERSION_NUMBER"
+          
+          # 使用 PowerShell 更新版本号
+          (Get-Content package.json) -replace '"version": ".*"', "`"version`": `"$VERSION_NUMBER`"" | Set-Content package.json
+          (Get-Content src-tauri/tauri.conf.json) -replace '"version": ".*"', "`"version`": `"$VERSION_NUMBER`"" | Set-Content src-tauri/tauri.conf.json
+          (Get-Content src-tauri/Cargo.toml) -replace '^version = ".*"', "version = `"$VERSION_NUMBER`"" | Set-Content src-tauri/Cargo.toml
+          
+          Write-Host "版本号更新完成"
 
       - name: Build for testing (no release)
         if: needs.check-release.outputs.should_release != 'true'
