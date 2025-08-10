@@ -23,7 +23,7 @@ custom-protocol = ["tauri/custom-protocol"]
 
 # 优化编译速度和大小
 [profile.dev]
-incremental = true
+incremental = false
 
 [profile.release]
 codegen-units = 1
@@ -31,3 +31,4 @@ lto = true
 opt-level = "s"
 panic = "abort"
 strip = true
+incremental = false

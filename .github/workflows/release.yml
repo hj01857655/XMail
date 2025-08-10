@@ -1,0 +1,111 @@
+name: 'Create Release'
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号 (例如: v1.0.1)'
+        required: true
+        type: string
+      release_notes:
+        description: '发布说明'
+        required: false
+        type: string
+        default: |
+          ## 新功能
+          - 
+
+          ## 改进
+          - 
+
+          ## 修复
+          - 
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate version format
+        run: |
+          if [[ ! "${{ github.event.inputs.version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "错误: 版本号格式不正确。请使用 vX.Y.Z 格式 (例如: v1.0.1)"
+            exit 1
+          fi
+
+      - name: Check if tag exists
+        run: |
+          if git rev-parse -q --verify "refs/tags/${{ github.event.inputs.version }}" >/dev/null; then
+            echo "错误: 标签 ${{ github.event.inputs.version }} 已存在"
+            exit 1
+          fi
+
+      - name: Update version in package.json
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          VERSION_NUMBER="${VERSION#v}"  # 移除 v 前缀
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" package.json
+
+      - name: Update version in tauri.conf.json
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          VERSION_NUMBER="${VERSION#v}"  # 移除 v 前缀
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" src-tauri/tauri.conf.json
+
+      - name: Update version in Cargo.toml
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          VERSION_NUMBER="${VERSION#v}"  # 移除 v 前缀
+          sed -i "s/^version = \".*\"/version = \"$VERSION_NUMBER\"/" src-tauri/Cargo.toml
+
+      - name: Commit version changes
+        run: |
+          git config user.name "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+          git commit -m "chore: bump version to ${{ github.event.inputs.version }}"
+          git push
+
+      - name: Create and push tag
+        run: |
+          git tag -a "${{ github.event.inputs.version }}" -m "Release ${{ github.event.inputs.version }}"
+          git push origin "${{ github.event.inputs.version }}"
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
+          if [ -z "$RELEASE_NOTES" ]; then
+            RELEASE_NOTES="## XMail ${{ github.event.inputs.version }}
+
+### 📦 安装包下载
+
+**支持的平台:**
+- Windows: \`.msi\` 安装包
+- macOS: \`.dmg\` 安装包 (支持 Intel 和 Apple Silicon)
+
+### ✨ 主要功能
+- 📧 邮件管理 (创建、查看、编辑、删除)
+- 🏷️ 分类管理
+- 🔍 强大的搜索和过滤功能
+- 📊 统计信息
+- 🎨 现代化用户界面
+
+### 🛠️ 技术栈
+- 前端: Vue.js 3 + Vite
+- 后端: Rust + Tauri
+- 数据库: SQLite
+
+如有问题请访问 [Issues](https://github.com/hj01857655/XMail/issues) 页面反馈。"
+          fi
+          
+          gh release create "${{ github.event.inputs.version }}" \
+            --title "XMail ${{ github.event.inputs.version }}" \
+            --notes "$RELEASE_NOTES" \
+            --draft=false

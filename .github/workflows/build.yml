@@ -1,10 +1,8 @@
 name: 'Build and Release'
 
 on:
-  push:
-    branches: [ main, master ]
-    tags:
-      - 'v*'
+  release:
+    types: [published]
   workflow_dispatch:
 
 jobs:
@@ -71,75 +69,22 @@ jobs:
 
       - name: Set Rust build optimization
         run: |
-          echo "CARGO_INCREMENTAL=1" >> $GITHUB_ENV
+          echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
           echo "CARGO_NET_RETRY=10" >> $GITHUB_ENV
           echo "RUST_BACKTRACE=1" >> $GITHUB_ENV
 
-      - name: Compute tag and release names
-        id: names
-        shell: bash
-        run: |
-          # If this is a tag push (refs/tags/*), use that tag. Else generate nightly tag
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-            echo "is_tag_push=true" >> "$GITHUB_OUTPUT"
-          else
-            ts=$(date -u +"%Y%m%d-%H%M%S")
-            echo "tag=nightly-${ts}-${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
-            echo "is_tag_push=false" >> "$GITHUB_OUTPUT"
-          fi
-          echo "ref_name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-
-      - name: Create and push tag (for non-tag pushes)
-        if: steps.names.outputs.is_tag_push != 'true'
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          git config user.name "${GITHUB_ACTOR}"
-          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-          # Avoid re-creating if exists
-          if git rev-parse -q --verify "refs/tags/${{ steps.names.outputs.tag }}" >/dev/null; then
-            echo "Tag already exists: ${{ steps.names.outputs.tag }}"
-          else
-            git tag -a "${{ steps.names.outputs.tag }}" -m "Auto tag from CI"
-            git push origin "${{ steps.names.outputs.tag }}"
-          fi
-
-      - name: Build the app
+      - name: Build and attach to release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CARGO_INCREMENTAL: 1
+          CARGO_INCREMENTAL: 0
           RUST_BACKTRACE: 1
         with:
-          tagName: ${{ steps.names.outputs.tag }}
-          releaseName: 'XMail ${{ steps.names.outputs.tag }}'
-          releaseBody: |
-            ## XMail
-            
-            ### 
-            
-            **:**
-            - Windows: `.msi` `.exe` 
-            - macOS: `.dmg` 
-            
-            ### 
-            - (, , , )
-            - 
-            - 
-            - 
-            - 
-            
-            ### 
-            - : Vue.js 3 + Vite
-            - : Rust + Tauri
-            - : SQLite
-            
-            [Issues](https://github.com/hj01857655/XMail/issues) .
-          releaseDraft: false
-          prerelease: ${{ steps.names.outputs.is_tag_push != 'true' }}
+          tagName: ${{ github.event.release.tag_name }}
+          releaseName: ${{ github.event.release.name }}
+          releaseBody: ${{ github.event.release.body }}
+          releaseDraft: ${{ github.event.release.draft }}
+          prerelease: ${{ github.event.release.prerelease }}
           args: ${{ matrix.args }}
 
       - name: sccache stats (Windows)

@@ -1,0 +1,54 @@
+name: 'CI Build'
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--target aarch64-apple-darwin'
+            target: 'aarch64-apple-darwin'
+          - platform: 'windows-latest'
+            args: '--bundles msi'
+            target: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+          cache-on-failure: true
+          shared-key: ${{ matrix.platform }}
+
+      - name: Install frontend dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Build app (test only)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          CARGO_INCREMENTAL: 0
+          RUST_BACKTRACE: 1
+        with:
+          args: ${{ matrix.args }}

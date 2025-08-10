@@ -29,10 +29,10 @@
 
 ### 从 Release 下载
 1. 前往 [Releases](../../releases) 页面
-2. 下载适合你操作系统的安装包：
-   - Windows: `.msi` 或 `.exe`
-   - macOS: `.dmg`
-   - Linux: `.deb` 或 `.AppImage`
+2. 下载最新正式版本的安装包：
+   - **Windows**: `.msi` 安装包
+   - **macOS**: `.dmg` 安装包 (支持 Intel 和 Apple Silicon)
+3. 双击安装包按提示安装即可
 
 ### 从源码构建
 
@@ -143,6 +143,12 @@ npm run build
 #### 分类和统计
 - `get_categories()` - 获取分类列表
 - `get_statistics()` - 获取统计信息
+
+## 🚀 版本发布
+
+项目采用语义化版本控制，所有正式版本都会在 [Releases](../../releases) 页面提供安装包下载。
+
+详细的发布流程请参考 [RELEASE.md](RELEASE.md)
 
 ## 🤝 贡献
 
