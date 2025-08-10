@@ -57,10 +57,18 @@ jobs:
     needs: test-build
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'master')
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+      metadata: read
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Check for auto-release tag
         id: check
@@ -78,45 +86,18 @@ jobs:
             echo "✅ 构建测试成功！如需自动发布，请在提交消息中添加 [auto-release:v1.0.1] 标记"
           fi
 
-      - name: Update version and create release
+      - name: Create release
         if: steps.check.outputs.should_release == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ steps.check.outputs.version }}"
-          VERSION_NUMBER="${VERSION#v}"
-          
-          # 更新版本号
-          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" package.json
-          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" src-tauri/tauri.conf.json
-          sed -i "s/^version = \".*\"/version = \"$VERSION_NUMBER\"/" src-tauri/Cargo.toml
-          
-          # 检查是否有文件变化
-          git config user.name "${GITHUB_ACTOR}"
-          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-          git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
-          
-          if git diff --staged --quiet; then
-            echo "版本号没有变化，跳过提交"
-          else
-            git commit -m "chore: bump version to $VERSION"
-            git push
-          fi
-          
-          # 创建标签（如果不存在）
-          if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
-            echo "标签 $VERSION 已存在，删除后重新创建"
-            git tag -d "$VERSION" || true
-            git push --delete origin "$VERSION" || true
-          fi
-          
-          git tag -a "$VERSION" -m "Release $VERSION"
-          git push origin "$VERSION"
-          
-          # 创建 GitHub Release
           COMMIT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           
+          echo "🚀 创建 GitHub Release: $VERSION"
+          
+          # 创建发布说明
           cat > release_notes.md << EOF
           ## 自动发布 $VERSION
           
@@ -133,12 +114,19 @@ jobs:
           如有问题请访问 [Issues](https://github.com/hj01857655/XMail/issues) 页面反馈。
           EOF
           
-          # 创建或更新 GitHub Release
+          # 删除已存在的 Release 和标签
           if gh release view "$VERSION" >/dev/null 2>&1; then
-            echo "Release $VERSION 已存在，删除后重新创建"
+            echo "删除已存在的 Release: $VERSION"
             gh release delete "$VERSION" --yes || true
           fi
           
+          if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
+            echo "删除已存在的标签: $VERSION"
+            git push --delete origin "$VERSION" || true
+          fi
+          
+          # 创建新的 Release（会自动创建标签）
           gh release create "$VERSION" \
             --title "XMail $VERSION" \
-            --notes-file release_notes.md
+            --notes-file release_notes.md \
+            --target "${{ github.sha }}"
