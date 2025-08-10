@@ -60,8 +60,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      actions: write
-      metadata: read
     
     steps:
       - name: Checkout repository
@@ -98,21 +96,19 @@ jobs:
           echo "🚀 创建 GitHub Release: $VERSION"
           
           # 创建发布说明
-          cat > release_notes.md << EOF
-          ## 自动发布 $VERSION
-          
-          🤖 此版本由 CI 成功后自动发布
-          
-          ### 📦 安装包下载
-          - Windows: \`.msi\` 安装包  
-          - macOS: \`.dmg\` 安装包 (支持 Intel 和 Apple Silicon)
-          
-          ### 🔗 相关信息
-          - 基于提交: $COMMIT_SHA
-          - 构建时间: $BUILD_TIME
-          
-          如有问题请访问 [Issues](https://github.com/hj01857655/XMail/issues) 页面反馈。
-          EOF
+          echo "## 自动发布 $VERSION" > release_notes.md
+          echo "" >> release_notes.md
+          echo "🤖 此版本由 CI 成功后自动发布" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### 📦 安装包下载" >> release_notes.md
+          echo "- Windows: .msi 安装包" >> release_notes.md
+          echo "- macOS: .dmg 安装包 (支持 Intel 和 Apple Silicon)" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### 🔗 相关信息" >> release_notes.md
+          echo "- 基于提交: $COMMIT_SHA" >> release_notes.md
+          echo "- 构建时间: $BUILD_TIME" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "如有问题请访问 [Issues](https://github.com/hj01857655/XMail/issues) 页面反馈。" >> release_notes.md
           
           # 删除已存在的 Release 和标签
           if gh release view "$VERSION" >/dev/null 2>&1; then
